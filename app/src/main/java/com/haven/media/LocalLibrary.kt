@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 private data class LocalMedia(
@@ -48,6 +49,7 @@ internal fun LocalLibraryScreen(destination: Destination) {
     var currentPath by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()\n    HavenAppContextHolder.context = context
 
     fun persistUris() {
         prefs.edit().putStringSet("uris", media.filterNot { it.folder }.map { it.uri.toString() }.toSet()).apply()
@@ -57,7 +59,7 @@ internal fun LocalLibraryScreen(destination: Destination) {
         if (uris.isNotEmpty()) {
             uris.forEach { uri ->
                 runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                val item = readDocument(uri)
+                val item = readDocument(context, uri)
                 if (media.none { it.uri == uri }) media = media + item
             }
             persistUris()
@@ -69,8 +71,8 @@ internal fun LocalLibraryScreen(destination: Destination) {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             busy = true
-            kotlinx.coroutines.MainScope().launch {
-                val scanned = withContext(Dispatchers.IO) { scanTree(uri) }
+            val savedTrees = prefs.getStringSet("trees", emptySet()).orEmpty().toMutableSet()\n            savedTrees.add(uri.toString())\n            prefs.edit().putStringSet("trees", savedTrees).apply()\n            scope.launch {
+                val scanned = withContext(Dispatchers.IO) { scanTree(context, uri) }
                 media = (media.filterNot { it.path.startsWith(uri.toString()) } + scanned)
                     .distinctBy { it.uri }
                 persistUris()
@@ -84,13 +86,13 @@ internal fun LocalLibraryScreen(destination: Destination) {
         val saved = prefs.getStringSet("uris", emptySet()).orEmpty()
         if (saved.isNotEmpty()) {
             media = withContext(Dispatchers.IO) {
-                saved.mapNotNull { raw -> runCatching { readDocument(Uri.parse(raw)) }.getOrNull() }
+                saved.mapNotNull { raw -> runCatching { readDocument(context, Uri.parse(raw)) }.getOrNull() }
             }
         }
         val trees = prefs.getStringSet("trees", emptySet()).orEmpty()
         if (trees.isNotEmpty()) {
             busy = true
-            media = media + withContext(Dispatchers.IO) { trees.flatMap { scanTree(Uri.parse(it)) } }
+            media = media + withContext(Dispatchers.IO) { trees.flatMap { scanTree(context, Uri.parse(it)) } }
             media = media.distinctBy { it.uri }
             busy = false
         }
@@ -210,7 +212,7 @@ private fun readDocument(uri: Uri): LocalMedia {
             } else null
         }
     }.getOrNull() ?: ((uri.lastPathSegment ?: "Media") to 0L)
-    val mime = HavenAppContextHolder.context.contentResolver.getType(uri)
+    val mime = context.contentResolver.getType(uri)
     return LocalMedia(uri, nameAndSize.first, mime, nameAndSize.second, nameAndSize.first)
 }
 
