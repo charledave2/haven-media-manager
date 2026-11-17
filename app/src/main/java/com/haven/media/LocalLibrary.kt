@@ -49,7 +49,8 @@ internal fun LocalLibraryScreen(destination: Destination) {
     var currentPath by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()\n
+    val scope = rememberCoroutineScope()
+
     fun persistUris() {
         prefs.edit().putStringSet("uris", media.filterNot { it.folder }.map { it.uri.toString() }.toSet()).apply()
     }
@@ -70,7 +71,10 @@ internal fun LocalLibraryScreen(destination: Destination) {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             busy = true
-            val savedTrees = prefs.getStringSet("trees", emptySet()).orEmpty().toMutableSet()\n            savedTrees.add(uri.toString())\n            prefs.edit().putStringSet("trees", savedTrees).apply()\n            scope.launch {
+            val savedTrees = prefs.getStringSet("trees", emptySet()).orEmpty().toMutableSet()
+            savedTrees.add(uri.toString())
+            prefs.edit().putStringSet("trees", savedTrees).apply()
+            scope.launch {
                 val scanned = withContext(Dispatchers.IO) { scanTree(context, uri) }
                 media = (media.filterNot { it.path.startsWith(uri.toString()) } + scanned)
                     .distinctBy { it.uri }
