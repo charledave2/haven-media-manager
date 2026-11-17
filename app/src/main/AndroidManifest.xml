@@ -7,5 +7,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name="com.pcloud.sdk.android.AuthorizationActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pcloud-oauth" android:host="com.haven.media" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
