@@ -76,7 +76,7 @@ private fun HavenTheme(content: @Composable () -> Unit) {
     )
 }
 
-private enum class Destination(val label: String, val icon: ImageVector) {
+internal enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Rounded.Home), Movies("Movies", Icons.Rounded.Movie),
     Music("Music", Icons.Rounded.MusicNote), Photos("Photos", Icons.Rounded.Photo),
     Files("Files", Icons.Rounded.Folder)
@@ -170,7 +170,7 @@ private fun HavenApp() {
                 modifier = Modifier.weight(1f)
             ) { target ->
                 if (target == Destination.Home) HomeScreen(onNavigate = ::navigateTo)
-                else LibraryScreen(target)
+                else LocalLibraryScreen(target)
             }
         }
     }
