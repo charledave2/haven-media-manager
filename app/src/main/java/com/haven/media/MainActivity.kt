@@ -4,11 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +38,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -90,6 +102,11 @@ private fun HavenApp() {
     var playing by remember { mutableStateOf(true) }
     var showSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
+
+    fun navigateTo(next: Destination) {
+        if (next != destination) destination = next
+    }
+
     Scaffold(
         containerColor = Ink,
         bottomBar = {
@@ -99,8 +116,22 @@ private fun HavenApp() {
                     Destination.entries.forEach { item ->
                         NavigationBarItem(
                             selected = destination == item,
-                            onClick = { destination = item },
-                            icon = { Icon(item.icon, contentDescription = item.label) },
+                            onClick = { navigateTo(item) },
+                            icon = {
+                                val iconScale by animateFloatAsState(
+                                    targetValue = if (destination == item) 1.06f else 1f,
+                                    animationSpec = spring(dampingRatio = .78f, stiffness = 480f),
+                                    label = "navigation-icon-${item.name}"
+                                )
+                                Icon(
+                                    item.icon,
+                                    contentDescription = item.label,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    }
+                                )
+                            },
                             label = { Text(item.label, fontSize = 10.sp) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Ink, indicatorColor = Leaf,
@@ -116,11 +147,29 @@ private fun HavenApp() {
             TopBar(destination, showSearch, search, { showSearch = !showSearch }, { search = it })
             AnimatedContent(
                 targetState = destination,
-                transitionSpec = { (fadeIn() + slideInHorizontally { it / 18 }) togetherWith (fadeOut() + slideOutHorizontally { -it / 18 }) },
+                transitionSpec = {
+                    val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    (fadeIn(animationSpec = tween(210, easing = FastOutSlowInEasing)) +
+                        slideInHorizontally(
+                            animationSpec = tween(260, easing = FastOutSlowInEasing),
+                            initialOffsetX = { direction * 22 }
+                        ) + scaleIn(
+                            initialScale = .992f,
+                            animationSpec = tween(260, easing = FastOutSlowInEasing)
+                        )) togetherWith
+                        (fadeOut(animationSpec = tween(130)) +
+                            slideOutHorizontally(
+                                animationSpec = tween(220, easing = FastOutSlowInEasing),
+                                targetOffsetX = { -direction * 12 }
+                            ) + scaleOut(
+                                targetScale = .996f,
+                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                            ))
+                },
                 label = "library-destination",
                 modifier = Modifier.weight(1f)
             ) { target ->
-                if (target == Destination.Home) HomeScreen(onNavigate = { destination = it })
+                if (target == Destination.Home) HomeScreen(onNavigate = ::navigateTo)
                 else LibraryScreen(target)
             }
         }
@@ -133,11 +182,33 @@ private fun TopBar(destination: Destination, searchOpen: Boolean, search: String
         Column(Modifier.weight(1f)) {
             Text("HAVEN  /  PERSONAL LIBRARY", color = Muted, fontSize = 9.sp, letterSpacing = 1.7.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text(destination.label, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            AnimatedContent(
+                targetState = destination.label,
+                transitionSpec = {
+                    (fadeIn(tween(150)) + slideInVertically(tween(190)) { it / 4 }) togetherWith
+                        (fadeOut(tween(100)) + slideOutVertically(tween(150)) { -it / 4 })
+                },
+                label = "destination-title"
+            ) { label ->
+                Text(label, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            }
         }
-        if (searchOpen) {
-            OutlinedTextField(search, onValue, Modifier.weight(1.2f), placeholder = { Text("Search your library") }, singleLine = true, shape = RoundedCornerShape(14.dp))
-            Spacer(Modifier.width(8.dp))
+        AnimatedVisibility(
+            visible = searchOpen,
+            modifier = Modifier.weight(1.2f),
+            enter = fadeIn(tween(160)) + expandHorizontally(
+                expandFrom = Alignment.End,
+                animationSpec = tween(220, easing = FastOutSlowInEasing)
+            ),
+            exit = fadeOut(tween(100)) + shrinkHorizontally(
+                shrinkTowards = Alignment.End,
+                animationSpec = tween(180, easing = FastOutSlowInEasing)
+            )
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(search, onValue, Modifier.weight(1f), placeholder = { Text("Search your library") }, singleLine = true, shape = RoundedCornerShape(14.dp))
+                Spacer(Modifier.width(8.dp))
+            }
         }
         IconButton(onClick = onSearch) { Icon(if (searchOpen) Icons.Rounded.Close else Icons.Rounded.Search, contentDescription = "Search", tint = Leaf) }
         IconButton(onClick = {}) { Icon(Icons.Rounded.CloudDone, contentDescription = "pCloud connection", tint = Leaf) }
@@ -290,7 +361,18 @@ private fun MiniPlayer(playing: Boolean, onPlay: () -> Unit) {
         Spacer(Modifier.width(9.dp))
         Column(Modifier.weight(1f)) { Text("Holocene", fontSize = 10.sp, fontWeight = FontWeight.SemiBold); Spacer(Modifier.height(3.dp)); Text("Bon Iver · Bon Iver", fontSize = 9.sp, color = Muted) }
         IconButton(onClick = {}, modifier = Modifier.size(35.dp)) { Icon(Icons.Rounded.SkipPrevious, null, tint = Color.LightGray) }
-        IconButton(onClick = onPlay, modifier = Modifier.size(35.dp).clip(CircleShape).background(Leaf)) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = Ink) }
+        IconButton(onClick = onPlay, modifier = Modifier.size(35.dp).clip(CircleShape).background(Leaf)) {
+            AnimatedContent(
+                targetState = playing,
+                transitionSpec = {
+                    (fadeIn(tween(110)) + scaleIn(initialScale = .78f, animationSpec = tween(180, easing = FastOutSlowInEasing))) togetherWith
+                        (fadeOut(tween(90)) + scaleOut(targetScale = .78f, animationSpec = tween(150, easing = FastOutSlowInEasing)))
+                },
+                label = "play-pause-icon"
+            ) { isPlaying ->
+                Icon(if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = Ink)
+            }
+        }
         IconButton(onClick = {}, modifier = Modifier.size(35.dp)) { Icon(Icons.Rounded.SkipNext, null, tint = Color.LightGray) }
     }
 }
