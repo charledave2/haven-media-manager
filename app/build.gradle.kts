@@ -43,5 +43,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+    // Official pCloud SDK for Android OAuth and authenticated file browsing.
+    implementation("com.pcloud.sdk:android:1.9.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
