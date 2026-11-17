@@ -75,12 +75,15 @@ internal fun LocalLibraryScreen(destination: Destination) {
             savedTrees.add(uri.toString())
             prefs.edit().putStringSet("trees", savedTrees).apply()
             scope.launch {
-                val scanned = withContext(Dispatchers.IO) { scanTree(context, uri) }
-                media = (media.filterNot { it.path.startsWith(uri.toString()) } + scanned)
-                    .distinctBy { it.uri }
-                persistUris()
+                val scanned = runCatching { withContext(Dispatchers.IO) { scanTree(context, uri) } }
+                scanned.onSuccess { items ->
+                    media = (media + items).distinctBy { it.uri }
+                    persistUris()
+                    Toast.makeText(context, "Added ${items.count { !it.folder }} items", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(context, "Could not read this folder", Toast.LENGTH_SHORT).show()
+                }
                 busy = false
-                Toast.makeText(context, "Added ${scanned.count { !it.folder }} items", Toast.LENGTH_SHORT).show()
             }
         }
     }
