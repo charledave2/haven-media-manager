@@ -49,8 +49,7 @@ internal fun LocalLibraryScreen(destination: Destination) {
     var currentPath by remember { mutableStateOf("") }
     var query by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()\n    HavenAppContextHolder.context = context
-
+    val scope = rememberCoroutineScope()\n
     fun persistUris() {
         prefs.edit().putStringSet("uris", media.filterNot { it.folder }.map { it.uri.toString() }.toSet()).apply()
     }
@@ -201,9 +200,9 @@ private fun LocalMediaRow(item: LocalMedia, onClick: () -> Unit) {
     }
 }
 
-private fun readDocument(uri: Uri): LocalMedia {
+private fun readDocument(context: android.content.Context, uri: Uri): LocalMedia {
     val nameAndSize = runCatching {
-        val cursor = HavenAppContextHolder.context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+        val cursor = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
         cursor?.use {
             if (it.moveToFirst()) {
                 val name = it.getString(0) ?: uri.lastPathSegment ?: "Media"
@@ -216,13 +215,8 @@ private fun readDocument(uri: Uri): LocalMedia {
     return LocalMedia(uri, nameAndSize.first, mime, nameAndSize.second, nameAndSize.first)
 }
 
-private object HavenAppContextHolder {
-    lateinit var context: android.content.Context
-}
-
-private fun scanTree(treeUri: Uri): List<LocalMedia> {
-    HavenAppContextHolder.context.let { }
-    val root = DocumentFile.fromTreeUri(HavenAppContextHolder.context, treeUri) ?: return emptyList()
+private fun scanTree(context: android.content.Context, treeUri: Uri): List<LocalMedia> {
+    val root = DocumentFile.fromTreeUri(context, treeUri) ?: return emptyList()
     val result = mutableListOf<LocalMedia>()
     fun visit(folder: DocumentFile, prefix: String, depth: Int) {
         if (depth > 8 || result.size > 500) return
