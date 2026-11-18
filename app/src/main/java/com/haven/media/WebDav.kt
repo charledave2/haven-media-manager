@@ -14,7 +14,6 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -143,17 +142,15 @@ internal object WebDavClient {
             setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
             setFeature("http://xml.org/sax/features/external-general-entities", false)
             setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-            setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "")
-            setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "")
         }
         val document = input.use { factory.newDocumentBuilder().parse(it) }
         val responses = document.getElementsByTagNameNS("*", "response")
         val targetPath = target.path.trimEnd('/').ifEmpty { "/" }
-        buildList {
+        return buildList {
             for (i in 0 until responses.length) {
                 val response = responses.item(i) as? Element ?: continue
                 val hrefRaw = response.firstText("href") ?: continue
-                val hrefUrl = runCatching { URI(target.toURI()).resolve(hrefRaw).toURL() }.getOrNull() ?: continue
+                val hrefUrl = runCatching { target.toURI().resolve(hrefRaw).toURL() }.getOrNull() ?: continue
                 if (hrefUrl.protocol != "https" || hrefUrl.host != target.host) continue
                 val path = hrefUrl.path
                 if (path.trimEnd('/').ifEmpty { "/" } == targetPath) continue
