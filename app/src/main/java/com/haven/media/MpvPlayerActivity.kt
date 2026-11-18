@@ -94,6 +94,14 @@ class MpvPlayerActivity : ComponentActivity() {
                     return
                 }
                 engine.setOptionString("http-header-fields", "Authorization: ${account.authorization}")
+                val caBundle = applicationContext.filesDir.resolve("cacert.pem")
+                if (!caBundle.isFile || caBundle.length() == 0L) {
+                    applicationContext.assets.open("cacert.pem").use { source ->
+                        caBundle.outputStream().use { target -> source.copyTo(target) }
+                    }
+                }
+                engine.setOptionString("tls-verify", "yes")
+                engine.setOptionString("tls-ca-file", caBundle.absolutePath)
             }
             engine.setOptionString("config", "no")
             engine.setOptionString("vo", "gpu")
