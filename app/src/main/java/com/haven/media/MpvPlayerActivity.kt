@@ -86,6 +86,23 @@ class MpvPlayerActivity : ComponentActivity() {
                 playerError = "The mpv engine could not start."
                 return
             }
+            if (intent.getBooleanExtra(EXTRA_WEBDAV, false)) {
+                val account = WebDavVault.load(applicationContext)
+                val remoteUri = intent.getStringExtra(EXTRA_URI)
+                if (account == null || remoteUri == null || !WebDavClient.isAllowedMediaUrl(account, remoteUri)) {
+                    playerError = "The secure pCloud stream is no longer available. Reconnect your account and try again."
+                    return
+                }
+                engine.setOptionString("http-header-fields", "Authorization: ${account.authorization}")
+                val caBundle = applicationContext.filesDir.resolve("cacert.pem")
+                if (!caBundle.isFile || caBundle.length() == 0L) {
+                    applicationContext.assets.open("cacert.pem").use { source ->
+                        caBundle.outputStream().use { target -> source.copyTo(target) }
+                    }
+                }
+                engine.setOptionString("tls-verify", "yes")
+                engine.setOptionString("tls-ca-file", caBundle.absolutePath)
+            }
             engine.setOptionString("config", "no")
             engine.setOptionString("vo", "gpu")
             engine.setOptionString("gpu-context", "android")
@@ -134,6 +151,7 @@ class MpvPlayerActivity : ComponentActivity() {
     companion object {
         const val EXTRA_URI = "com.haven.media.extra.MEDIA_URI"
         const val EXTRA_NAME = "com.haven.media.extra.MEDIA_NAME"
+        const val EXTRA_WEBDAV = "com.haven.media.extra.WEBDAV_STREAM"
     }
 
     @Composable

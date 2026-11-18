@@ -47,6 +47,8 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("io.coil-kt:coil-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
+    // pCloud WebDAV client; supports PROPFIND and authenticated media streaming.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // pCloud Android authorization activity plus Java API client and file operations.
     implementation("com.pcloud.sdk:android:1.9.1")
     implementation("com.pcloud.sdk:java-core:1.9.1")
