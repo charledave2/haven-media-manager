@@ -6,6 +6,7 @@
         android:label="Haven"
         android:usesCleartextTraffic="false"
         tools:replace="android:theme">
+        <activity android:name="com.haven.media.MpvPlayerActivity" android:exported="false" android:screenOrientation="sensor" />
         <activity android:name="com.haven.media.MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
