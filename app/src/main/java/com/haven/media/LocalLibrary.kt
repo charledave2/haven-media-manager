@@ -165,11 +165,22 @@ internal fun LocalLibraryScreen(destination: Destination) {
                     LocalMediaRow(item, onClick = {
                         if (item.folder) currentPath = item.path
                         else runCatching {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(item.uri, item.mime ?: "*/*")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            val video = item.mime?.startsWith("video/") == true || item.name.isVideo()
+                            val audio = item.mime?.startsWith("audio/") == true || item.name.isAudio()
+                            if (video || audio) {
+                                val intent = Intent(context, MpvPlayerActivity::class.java).apply {
+                                    putExtra(MpvPlayerActivity.EXTRA_URI, item.uri.toString())
+                                    putExtra(MpvPlayerActivity.EXTRA_NAME, item.name)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
+                            } else {
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(item.uri, item.mime ?: "*/*")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(intent)
                             }
-                            context.startActivity(intent)
                         }.onFailure {
                             Toast.makeText(context, "No compatible app found for this file", Toast.LENGTH_SHORT).show()
                         }
