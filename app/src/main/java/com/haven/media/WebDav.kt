@@ -8,9 +8,7 @@ import android.util.Base64
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.w3c.dom.Element
-import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -18,6 +16,10 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import javax.xml.XMLConstants
 import javax.xml.parsers.DocumentBuilderFactory
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 
 internal enum class WebDavRegion(val label: String, val baseUrl: String) {
     US("United States", "https://webdav.pcloud.com/"),
@@ -94,44 +96,48 @@ internal object WebDavVault {
 }
 
 internal object WebDavClient {
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(40, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val propfindBody = """<?xml version="1.0" encoding="utf-8"?>
 <d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/><d:getcontenttype/><d:getlastmodified/></d:prop></d:propfind>""".toByteArray(Charsets.UTF_8)
 
     suspend fun listFolder(account: WebDavAccount, href: String = "/"): List<WebDavEntry> = withContext(Dispatchers.IO) {
         val target = resolveUrl(account, href)
-        val connection = (target.openConnection() as HttpURLConnection).apply {
-            requestMethod = "PROPFIND"
-            connectTimeout = 15_000
-            readTimeout = 30_000
-            doOutput = true
-            setRequestProperty("Authorization", account.authorization)
-            setRequestProperty("Depth", "1")
-            setRequestProperty("Content-Type", "application/xml; charset=utf-8")
-            setRequestProperty("Accept", "application/xml")
-        }
-        try {
-            connection.outputStream.use { it.write(propfindBody) }
-            when (val code = connection.responseCode) {
-                207, 200 -> parseEntries(connection.inputStream, target)
+        val request = Request.Builder()
+            .url(target)
+            .header("Authorization", account.authorization)
+            .header("Depth", "1")
+            .header("Accept", "application/xml")
+            .method("PROPFIND", propfindBody.toRequestBody("application/xml; charset=utf-8".toMediaType()))
+            .build()
+        http.newCall(request).execute().use { response ->
+            when (response.code) {
+                207, 200 -> response.body?.byteStream()?.use { parseEntries(it, target) }
+                    ?: throw WebDavException("pCloud returned an empty folder response.")
                 401, 403 -> throw WebDavException("pCloud did not accept this login. Check your email and password, and approve any new-login email from pCloud.")
-                else -> throw WebDavException("pCloud WebDAV returned HTTP $code.")
+                else -> throw WebDavException("pCloud WebDAV returned HTTP \${response.code}.")
             }
-        } finally {
-            connection.disconnect()
         }
     }
 
     fun fileUrl(account: WebDavAccount, href: String): String = resolveUrl(account, href).toString()
 
-    private fun resolveUrl(account: WebDavAccount, href: String): URL {
+    fun isAllowedMediaUrl(account: WebDavAccount, value: String): Boolean = runCatching {
+        val uri = URI(value)
+        uri.scheme == "https" && uri.host == URI(account.region.baseUrl).host
+    }.getOrDefault(false)
+
+    private fun resolveUrl(account: WebDavAccount, href: String): java.net.URL {
         val base = URI(account.region.baseUrl)
-        val safeHref = if (href.startsWith("http://") || href.startsWith("https://")) href else href
-        val target = base.resolve(safeHref).toURL()
+        val target = base.resolve(href).toURL()
         require(target.protocol == "https" && target.host == base.host) { "Unexpected WebDAV host." }
         return target
     }
 
-    private fun parseEntries(input: java.io.InputStream, target: URL): List<WebDavEntry> {
+    private fun parseEntries(input: java.io.InputStream, target: java.net.URL): List<WebDavEntry> {
         val factory = DocumentBuilderFactory.newInstance().apply {
             isNamespaceAware = true
             setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
@@ -148,7 +154,7 @@ internal object WebDavClient {
                 val response = responses.item(i) as? Element ?: continue
                 val hrefRaw = response.firstText("href") ?: continue
                 val hrefUrl = runCatching { URI(target.toURI()).resolve(hrefRaw).toURL() }.getOrNull() ?: continue
-                if (hrefUrl.host != target.host) continue
+                if (hrefUrl.protocol != "https" || hrefUrl.host != target.host) continue
                 val path = hrefUrl.path
                 if (path.trimEnd('/').ifEmpty { "/" } == targetPath) continue
                 val prop = response.getElementsByTagNameNS("*", "prop").item(0) as? Element ?: continue
