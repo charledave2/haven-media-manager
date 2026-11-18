@@ -99,6 +99,7 @@ private val collections = listOf(
 @Composable
 private fun HavenApp() {
     var destination by remember { mutableStateOf(Destination.Home) }
+    var cloudLibrary by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(true) }
     var showSearch by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
@@ -116,7 +117,7 @@ private fun HavenApp() {
                     Destination.entries.forEach { item ->
                         NavigationBarItem(
                             selected = destination == item,
-                            onClick = { navigateTo(item) },
+                            onClick = { cloudLibrary = false; navigateTo(item) },
                             icon = {
                                 val iconScale by animateFloatAsState(
                                     targetValue = if (destination == item) 1.06f else 1f,
@@ -144,11 +145,14 @@ private fun HavenApp() {
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).statusBarsPadding()) {
-            TopBar(destination, showSearch, search, { showSearch = !showSearch }, { search = it })
+            TopBar(destination, cloudLibrary, showSearch, search, { showSearch = !showSearch }, { search = it }, {
+                cloudLibrary = true
+                destination = Destination.Files
+            })
             AnimatedContent(
-                targetState = destination,
+                targetState = destination to cloudLibrary,
                 transitionSpec = {
-                    val direction = if (targetState.ordinal > initialState.ordinal) 1 else -1
+                    val direction = if (targetState.first.ordinal > initialState.first.ordinal) 1 else -1
                     (fadeIn(animationSpec = tween(210, easing = FastOutSlowInEasing)) +
                         slideInHorizontally(
                             animationSpec = tween(260, easing = FastOutSlowInEasing),
@@ -169,21 +173,24 @@ private fun HavenApp() {
                 label = "library-destination",
                 modifier = Modifier.weight(1f)
             ) { target ->
-                if (target == Destination.Home) HomeScreen(onNavigate = ::navigateTo)
-                else LocalLibraryScreen(target)
+                when {
+                    target.first == Destination.Home -> HomeScreen(onNavigate = ::navigateTo)
+                    target.second -> WebDavLibraryScreen(target.first) { cloudLibrary = false }
+                    else -> LocalLibraryScreen(target.first)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TopBar(destination: Destination, searchOpen: Boolean, search: String, onSearch: () -> Unit, onValue: (String) -> Unit) {
+private fun TopBar(destination: Destination, cloudMode: Boolean, searchOpen: Boolean, search: String, onSearch: () -> Unit, onValue: (String) -> Unit, onCloud: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("HAVEN  /  PERSONAL LIBRARY", color = Muted, fontSize = 9.sp, letterSpacing = 1.7.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             AnimatedContent(
-                targetState = destination.label,
+                targetState = if (cloudMode) "pCloud" else destination.label,
                 transitionSpec = {
                     (fadeIn(tween(150)) + slideInVertically(tween(190)) { it / 4 }) togetherWith
                         (fadeOut(tween(100)) + slideOutVertically(tween(150)) { -it / 4 })
@@ -211,7 +218,7 @@ private fun TopBar(destination: Destination, searchOpen: Boolean, search: String
             }
         }
         IconButton(onClick = onSearch) { Icon(if (searchOpen) Icons.Rounded.Close else Icons.Rounded.Search, contentDescription = "Search", tint = Leaf) }
-        IconButton(onClick = {}) { Icon(Icons.Rounded.CloudDone, contentDescription = "pCloud connection", tint = Leaf) }
+        IconButton(onClick = onCloud) { Icon(Icons.Rounded.CloudDone, contentDescription = "Open pCloud library", tint = Leaf) }
     }
 }
 
